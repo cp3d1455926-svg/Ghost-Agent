@@ -24,7 +24,7 @@ PAGE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Ghost Agent</title>
+<title>Ghost Agent - 智能代码助手</title>
 <style>
 :root {
   --bg-primary: #0d1117;
@@ -86,6 +86,7 @@ body {
   font-size: 12px;
   color: var(--text-muted);
 }
+.header .status { color: var(--green); }
 .header .status {
   margin-left: auto;
   display: flex;
@@ -444,63 +445,63 @@ body {
     <h1>Ghost Agent</h1>
     <div class="subtitle">AI-Powered Code Agent</div>
   </div>
-  <div class="status"><span class="dot"></span>Online</div>
+  <div class="status"><span class="dot"></span>在线</div>
 </div>
 
 <div class="container">
   <div class="sidebar">
-    <div class="sidebar-header"><h2>Quick Actions</h2></div>
+    <div class="sidebar-header"><h2>快捷操作</h2></div>
     <div class="sidebar-nav">
       <div class="nav-item active" onclick="sq('write a data analysis script')">
-        <span class="icon">&#128202;</span> Data Analysis
+        <span class="icon">&#128202;</span> 数据分析
       </div>
       <div class="nav-item" onclick="sq('write a math calculator')">
-        <span class="icon">&#128437;</span> Calculator
+        <span class="icon">&#128437;</span> 计算器
       </div>
       <div class="nav-item" onclick="sq('write a web API server')">
-        <span class="icon">&#128295;</span> API Server
+        <span class="icon">&#128295;</span> API 服务器
       </div>
       <div class="nav-item" onclick="sq('write a file organizer')">
-        <span class="icon">&#128193;</span> File Organizer
+        <span class="icon">&#128193;</span> 文件整理
       </div>
       <div class="nav-item" onclick="sq('write a web scraper')">
-        <span class="icon">&#128268;</span> Web Scraper
+        <span class="icon">&#128268;</span> 网页爬虫
       </div>
       <div class="nav-item" onclick="sq('write a number guessing game')">
-        <span class="icon">&#127918;</span> Mini Game
+        <span class="icon">&#127918;</span> 小游戏
       </div>
       <div class="nav-item" onclick="sq('status')">
-        <span class="icon">&#128269;</span> Status
+        <span class="icon">&#128269;</span> 状态
       </div>
       <div class="nav-item" onclick="clearChat()">
-        <span class="icon">&#128465;</span> Clear Chat
+        <span class="icon">&#128465;</span> 清空对话
       </div>
     </div>
-    <div class="sidebar-footer">Ghost Agent v2.1 | Port 26602</div>
+    <div class="sidebar-footer">Ghost Agent v2.1 | 端口 26602</div>
   </div>
 
   <div class="main">
     <div class="messages" id="m">
       <div class="welcome" id="welcome">
         <div class="logo-big">&#128123;</div>
-        <h2>Welcome to Ghost Agent</h2>
-        <p>I am an AI-powered code agent. I can write code, debug errors, and auto-fix bugs. Enter your requirement below or use the quick actions on the left.</p>
+        <h2>欢迎使用 Ghost Agent</h2>
+        <p>我是一个 AI 驱动的代码助手。可以帮你写代码、调试错误、自动修复 Bug。在下方输入你的需求，或使用左侧快捷操作。</p>
       </div>
     </div>
 
     <div class="input-area">
       <div class="input-wrap">
         <div class="input-box">
-          <textarea id="i" placeholder="Enter your requirement... (Enter to send, Shift+Enter for new line)" rows="1" onkeydown="handleKey(event)"></textarea>
-          <button id="b" onclick="send()">Send</button>
+          <textarea id="i" placeholder="输入你的需求...（回车发送，Shift+回车换行）" rows="1" onkeydown="handleKey(event)"></textarea>
+          <button id="b" onclick="send()">发送</button>
         </div>
         <div class="quick-actions">
-          <button onclick="sq('write a data analysis script')">Data Analysis</button>
-          <button onclick="sq('write a math calculator')">Calculator</button>
-          <button onclick="sq('write a web API server')">API Server</button>
-          <button onclick="sq('write a file organizer')">File Organizer</button>
-          <button onclick="sq('write a web scraper')">Web Scraper</button>
-          <button onclick="sq('status')">Status</button>
+          <button onclick="sq('write a data analysis script')">数据分析</button>
+          <button onclick="sq('write a math calculator')">计算器</button>
+          <button onclick="sq('write a web API server')">API 服务器</button>
+          <button onclick="sq('write a file organizer')">文件整理</button>
+          <button onclick="sq('write a web scraper')">网页爬虫</button>
+          <button onclick="sq('status')">状态</button>
         </div>
       </div>
     </div>
@@ -555,12 +556,12 @@ function send() {
     document.getElementById('b').disabled = false;
     var c = '';
     if (d.success) {
-      c = '<span class="success">&#10003; Task completed successfully</span>';
+      c = '<span class="success">&#10003; 任务完成</span>';
       if (d.output) {
         c += '<pre>' + esc(d.output) + '</pre>';
       }
     } else {
-      c = '<span class="error">&#10007; Task failed</span>';
+      c = '<span class="error">&#10007; 任务失败</span>';
       if (d.error) {
         c += '<pre>' + esc(d.error) + '</pre>';
       }
@@ -570,7 +571,7 @@ function send() {
   .catch(function(e) {
     removeTyping();
     document.getElementById('b').disabled = false;
-    addMsg('ghost', '<span class="error">Error: ' + esc(String(e)) + '</span>');
+    addMsg('ghost', '<span class="error">错误: ' + esc(String(e)) + '</span>');
   });
 }
 
@@ -583,7 +584,7 @@ function addMsg(type, content) {
     : '<div class="avatar user">&#128100;</div>';
   var role = type === 'ghost'
     ? '<div class="role">Ghost Agent</div>'
-    : '<div class="role">You</div>';
+    : '<div class="role">你</div>';
   d.innerHTML = av + '<div class="bubble ' + type + '">' + role + content + '</div>';
   m.appendChild(d);
   m.scrollTop = m.scrollHeight;
