@@ -1,0 +1,10 @@
+{
+  "backend": "longcat",
+  "longcat_model": "LongCat-2.0-Preview",
+  "longcat_base_url": "https://api.longcat.chat/openai/v1",
+  "longcat_api_key": "",
+  "openai_key": "",
+  "openai_model": "gpt-4",
+  "ollama_host": "http://localhost:11434",
+  "ollama_model": "codellama"
+}

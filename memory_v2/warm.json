@@ -1,0 +1,63 @@
+{
+  "task:写一个数据分析脚本": {
+    "key": "task:写一个数据分析脚本",
+    "value": {
+      "requirement": "写一个数据分析脚本",
+      "success": true,
+      "rounds": 1,
+      "fixes": []
+    },
+    "time": "2026-05-02T18:48:13.491842"
+  },
+  "task:写一个数学计算器": {
+    "key": "task:写一个数学计算器",
+    "value": {
+      "requirement": "写一个数学计算器",
+      "success": false,
+      "rounds": 5,
+      "fixes": [
+        {
+          "round": 1,
+          "fix": "类型错误"
+        },
+        {
+          "round": 2,
+          "fix": "类型错误"
+        },
+        {
+          "round": 3,
+          "fix": "类型错误"
+        },
+        {
+          "round": 4,
+          "fix": "类型错误"
+        },
+        {
+          "round": 5,
+          "fix": "类型错误"
+        }
+      ]
+    },
+    "time": "2026-05-02T18:56:16.429495"
+  },
+  "task:write a math calculator": {
+    "key": "task:write a math calculator",
+    "value": {
+      "requirement": "write a math calculator",
+      "success": true,
+      "rounds": 1,
+      "fixes": []
+    },
+    "time": "2026-05-02T19:01:45.273904"
+  },
+  "task:write a data analysis script": {
+    "key": "task:write a data analysis script",
+    "value": {
+      "requirement": "write a data analysis script",
+      "success": true,
+      "rounds": 1,
+      "fixes": []
+    },
+    "time": "2026-05-02T19:24:25.469061"
+  }
+}

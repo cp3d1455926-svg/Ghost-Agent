@@ -1,0 +1,11 @@
+{
+  "list": [
+    {
+      "type": "TypeError",
+      "detail": "Traceback (most recent call last):\n  File \"C:\\Users\\shenz\\.openclaw\\workspace\\code-agent\\projects\\_run_185616.py\", line 20, in <module>\n    print(f\"2+3={c.add(2,3)} 10-4={c.sub(10,4)} 6*7={c.mul(6,7)}",
+      "fix": "[{'round': 1, 'fix': '类型错误'}, {'round': 2, 'fix': '类型错误'}, {'round': 3, 'fix': '类型错误'}, {'round': 4, 'fix': '类型错误'}, {'round': 5, 'fix': '类型错误'}]",
+      "ok": false,
+      "time": "2026-05-02T18:56:16.425406"
+    }
+  ]
+}
