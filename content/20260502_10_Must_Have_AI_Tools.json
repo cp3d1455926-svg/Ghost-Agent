@@ -1,0 +1,42 @@
+{
+  "title": "10 Must-Have AI Tools - One Article Guide",
+  "cover_desc": "10 Must-Have AI Tools - one article is enough",
+  "author": "Ghost",
+  "created": "2026-05-02T19:45:00.754774",
+  "type": "list",
+  "tags": [
+    "10 Must-Have AI Tools",
+    "AI",
+    "Tech",
+    "Tools",
+    "Productivity"
+  ],
+  "sections": [
+    {
+      "type": "intro",
+      "text": "Introduction to 10 Must-Have AI Tools"
+    },
+    {
+      "type": "list",
+      "items": [
+        {
+          "title": "Point 1",
+          "content": "Details about point 1"
+        },
+        {
+          "title": "Point 2",
+          "content": "Details about point 2"
+        },
+        {
+          "title": "Point 3",
+          "content": "Details about point 3"
+        }
+      ]
+    },
+    {
+      "type": "conclusion",
+      "text": "Summary of 10 Must-Have AI Tools"
+    }
+  ],
+  "cta": "If you found this helpful, follow us for more!"
+}
