@@ -441,27 +441,15 @@ class TemplateLibrary:
 
     def _generic(self, req):
         return (
-            '"""' + req + '"""\n'
-            '# Ghost Agent v2.1\n'
-            'import sys\n'
+            '# ' + req + '\n'
             '\n'
             'def main():\n'
-            '    """Main entry point"""\n'
-            '    print("=" * 50)\n'
-            '    print("Ghost Agent v2.1")\n'
-            '    print("Task: ' + req + '")\n'
-            '    print("=" * 50)\n'
-            '\n'
-            '    # TODO: Replace with your implementation\n'
+            '    print("Processing: ' + req + '")\n'
             '    data = [1, 2, 3, 4, 5]\n'
-            '    print("Sample data:", data)\n'
-            '    print("Sum:", sum(data))\n'
-            '    print("Avg:", sum(data) / len(data))\n'
-            '\n'
-            '    return 0\n'
+            '    print("Sample output:", sum(data))\n'
             '\n'
             'if __name__ == "__main__":\n'
-            '    sys.exit(main())\n'
+            '    main()\n'
         )
 
 
