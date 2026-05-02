@@ -163,7 +163,7 @@ class StepfunBackend(AIBackend):
                     pass
     
     def generate_code(self, requirement, language="python", context=None):
-        prompt = "你是一个专业的 " + language + " 程序员。根据需求生成完整可运行的代码。\n需求: " + requirement + "\n只返回代码，不要解释:"
+        prompt = "你是一个专业的 " + language + " 程序员。根据需求生成完整可运行的代码。\n需求: " + requirement + "\n要求：1. 代码必须包含 if __name__ == \"__main__\" 入口 2. 必须有 print 输出 3. 只返回代码，不要解释:"
         return self._call(prompt)
     
     def fix_code(self, code, error, language="python"):
@@ -578,7 +578,7 @@ class OpenClawExecutor:
         f = wd / ("_run_" + ts + ".py")
         f.write_text(code, encoding="utf-8")
         try:
-            r = subprocess.run([sys.executable, "-X", "utf8", str(f)], capture_output=True, text=True, timeout=TIMEOUT, cwd=str(wd), env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+            r = subprocess.run([sys.executable, str(f)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT, cwd=str(wd), env={**os.environ, "PYTHONIOENCODING": "utf-8"})
             return {"success": r.returncode == 0, "stdout": r.stdout, "stderr": r.stderr}
         except subprocess.TimeoutExpired: return {"success": False, "stdout": "", "stderr": "timeout"}
         except Exception as e: return {"success": False, "stdout": "", "stderr": str(e)}
@@ -598,7 +598,7 @@ class OpenClawExecutor:
         f = wd / ("_run_" + ts + ".js")
         f.write_text(code, encoding="utf-8")
         try:
-            r = subprocess.run(["node", str(f)], capture_output=True, text=True, timeout=TIMEOUT, cwd=str(wd))
+            r = subprocess.run(["node", str(f)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT, cwd=str(wd))
             return {"success": r.returncode == 0, "stdout": r.stdout, "stderr": r.stderr}
         except subprocess.TimeoutExpired: return {"success": False, "stdout": "", "stderr": "timeout"}
         except Exception as e: return {"success": False, "stdout": "", "stderr": str(e)}
