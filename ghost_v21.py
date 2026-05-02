@@ -440,13 +440,27 @@ class TemplateLibrary:
         )
 
     def _generic(self, req):
+        simple_greetings = ['in ma', 'zai ma', 'ni hao', 'hello', 'hi', 'hey', 'hei', 'ha']
+        is_greeting = req.lower().strip('?!. \t\n') in simple_greetings or len(req.strip()) < 4
+        if is_greeting:
+            return (
+                '# ' + req + '\n'
+                'print("Hi! I am Ghost Agent.")\n'
+                'print("I can write code, debug errors, and auto-fix bugs.")\n'
+                'print("Try: write a data analysis script")
+'
+                'print("     create a web API server")
+'
+                'print("     write a web scraper")
+'
+                'print("     organize my files")
+'
+            )
         return (
             '# ' + req + '\n'
-            '\n'
             'def main():\n'
-            '    print("Processing: ' + req + '")\n'
-            '    data = [1, 2, 3, 4, 5]\n'
-            '    print("Sample output:", sum(data))\n'
+            '    # TODO: Implement: ' + req + '\n'
+            '    pass\n'
             '\n'
             'if __name__ == "__main__":\n'
             '    main()\n'
