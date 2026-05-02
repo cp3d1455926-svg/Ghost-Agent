@@ -132,6 +132,70 @@ class LongCatBackend(AIBackend):
             return "# Generation failed: " + str(e)
 
 
+class StepfunBackend(AIBackend):
+    """Stepfun 3.5 Flash backend"""
+    
+    def __init__(self, api_key=None, model="step-3.5-flash", base_url=None):
+        self.model = model
+        self.api_key = api_key or os.environ.get("STEPFUN_API_KEY", "")
+        self.base_url = base_url or "https://api.stepfun.com/v1"
+        if not self.api_key:
+            self._load_from_openclaw_config()
+    
+    def _load_from_openclaw_config(self):
+        config_paths = [
+            Path(os.path.expanduser("~/.openclaw/agents/main/agent/models.json")),
+            Path("C:/Users/shenz/.openclaw/agents/main/agent/models.json"),
+        ]
+        for p in config_paths:
+            if p.exists():
+                try:
+                    config = json.loads(p.read_text(encoding="utf-8"))
+                    providers = config.get("providers", {})
+                    if "stepfun" in providers:
+                        self.api_key = providers["stepfun"].get("apiKey", "")
+                        self.base_url = providers["stepfun"].get("baseUrl", self.base_url)
+                        for m in providers["stepfun"].get("models", []):
+                            if "3.5" in m.get("id", "") and "flash" in m.get("id", ""):
+                                self.model = m["id"]
+                                break
+                except Exception:
+                    pass
+    
+    def generate_code(self, requirement, language="python", context=None):
+        prompt = "你是一个专业的 " + language + " 程序员。根据需求生成完整可运行的代码。\n需求: " + requirement + "\n只返回代码，不要解释:"
+        return self._call(prompt)
+    
+    def fix_code(self, code, error, language="python"):
+        prompt = "修复 " + language + " 代码错误:\n代码:\n" + code + "\n错误:\n" + error + "\n只返回修复后代码:"
+        return self._call(prompt)
+    
+    def _call(self, prompt):
+        try:
+            import urllib.request
+            data = json.dumps({
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+                "max_tokens": 4000,
+            }).encode()
+            headers = {"Content-Type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = "Bearer " + self.api_key
+            req = urllib.request.Request(
+                self.base_url + "/chat/completions",
+                data=data, headers=headers
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                result = json.loads(resp.read().decode())
+                content = result["choices"][0]["message"]["content"]
+                match = re.search(r"```(?:python|javascript|js)?\s*\n(.*?)```", content, re.DOTALL)
+                return match.group(1).strip() if match else content.strip()
+        except Exception as e:
+            print("[StepfunBackend] Error: " + str(e))
+            return "# Generation failed: " + str(e)
+
+
 class OpenAIBackend(LongCatBackend):
     """ChatGPT API backend (same interface as LongCat)"""
     
@@ -447,14 +511,10 @@ class TemplateLibrary:
                 '# ' + req + '\n'
                 'print("Hi! I am Ghost Agent.")\n'
                 'print("I can write code, debug errors, and auto-fix bugs.")\n'
-                'print("Try: write a data analysis script")
-'
-                'print("     create a web API server")
-'
-                'print("     write a web scraper")
-'
-                'print("     organize my files")
-'
+                'print("Try: write a data analysis script")\n'
+                'print("     create a web API server")\n'
+                'print("     write a web scraper")\n'
+                'print("     organize my files")\n'
             )
         return (
             '# ' + req + '\n'
@@ -723,6 +783,12 @@ def create_agent(config_path=None):
             model=config.get("longcat_model", "longcat/LongCat-2.0-Preview"),
             base_url=config.get("longcat_base_url", "") or None,
             api_key=config.get("longcat_api_key", "") or None,
+        ))
+    elif backend == "stepfun":
+        return GhostAgent(ai=StepfunBackend(
+            model=config.get("stepfun_model", "step-3.5-flash"),
+            base_url=config.get("stepfun_base_url", "") or None,
+            api_key=config.get("stepfun_api_key", "") or None,
         ))
     elif backend == "openai":
         return GhostAgent(ai=OpenAIBackend(

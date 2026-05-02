@@ -1,5 +1,8 @@
 {
-  "backend": "longcat",
+  "backend": "stepfun",
+  "stepfun_model": "step-3.5-flash",
+  "stepfun_base_url": "https://api.stepfun.com/v1",
+  "stepfun_api_key": "",
   "longcat_model": "LongCat-2.0-Preview",
   "longcat_base_url": "https://api.longcat.chat/openai/v1",
   "longcat_api_key": "",
