@@ -48,48 +48,35 @@ class Mem0Memory:
     Falls back to local JSON if mem0 is not installed.
     """
     
-    def __init__(self, user_id="ghost_agent", agent_id="main", use_local=True):
+    def __init__(self, user_id="ghost_agent", agent_id="main", api_key=None):
         self.user_id = user_id
         self.agent_id = agent_id
         self._mem0_available = False
         self._fallback = {}
         
+        # Read API key from parameter, then environment variable
+        self.api_key = api_key or os.environ.get("MEM0_API_KEY", "")
+        
         try:
             from mem0 import Memory
-            if use_local:
-                # Local mode: uses Qdrant (embedded) + local LLM for extraction
-                config = {
-                    "vector_store": {
-                        "provider": "qdrant",
-                        "config": {
-                            "host": "localhost",
-                            "port": 6333,
-                            "path": str(MEMORY_DIR / "qdrant"),
-                        }
-                    },
-                    "llm": {
-                        "provider": "ollama",
-                        "config": {
-                            "model": "llama3",
-                            "ollama_base_url": "http://localhost:11434",
-                        }
-                    },
-                    "embedder": {
-                        "provider": "ollama",
-                        "config": {
-                            "model": "nomic-embed-text",
-                            "ollama_base_url": "http://localhost:11434",
-                        }
-                    },
-                }
-                # Simplified config - use default Memory() which auto-configures
-                self.memory = Memory()
+            
+            if self.api_key:
+                # Cloud mode: use mem0 platform API (handles vector storage + LLM + embeddings)
+                self.memory = Memory(api_key=self.api_key)
+                self._mem0_available = True
+                print("[mem0] Cloud mode initialized (API key: " + self.api_key[:8] + "...)")
             else:
-                self.memory = Memory()
-            self._mem0_available = True
-            print("[mem0] Initialized successfully")
+                # Local mode: try local Qdrant + Ollama
+                try:
+                    self.memory = Memory()
+                    self._mem0_available = True
+                    print("[mem0] Local mode initialized")
+                except Exception as e:
+                    print("[mem0] Local init failed: " + str(e)[:80])
+                    print("[mem0] Set MEM0_API_KEY env var for cloud mode")
+            
         except ImportError:
-            print("[mem0] Not installed, using JSON fallback")
+            print("[mem0] Not installed, using JSON fallback. Run: pip install mem0ai")
         except Exception as e:
             print("[mem0] Init failed: " + str(e)[:80] + ", using JSON fallback")
     
