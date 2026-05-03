@@ -58,11 +58,11 @@ class Mem0Memory:
         self.api_key = api_key or os.environ.get("MEM0_API_KEY", "")
         
         try:
-            from mem0 import Memory
+            from mem0 import MemoryClient, Memory
             
             if self.api_key:
                 # Cloud mode: use mem0 platform API (handles vector storage + LLM + embeddings)
-                self.memory = Memory(api_key=self.api_key)
+                self.memory = MemoryClient(api_key=self.api_key)
                 self._mem0_available = True
                 print("[mem0] Cloud mode initialized (API key: " + self.api_key[:8] + "...)")
             else:
