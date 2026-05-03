@@ -4,16 +4,12 @@ Ghost Agent v3.1 - mem0 Memory Integration
 Authors: Ghost & Jake
 
 New in v3.1:
-- Replaced MemUMemory with mem0 (open-source memory framework)
-  * Semantic search via mem0 (no API key needed for local mode)
-  * BM25 keyword + entity extraction + semantic fusion
-  * Auto memory extraction from conversations
-  * Multi-user support
-  * Persistent storage via Qdrant (local)
+- mem0-powered memory system (cloud + local fallback)
+- Semantic search via mem0 platform API (MemoryClient)
 - Backward compatible with all v2.x features
 
 Usage:
-    agent = GhostAgent()                         # Default (mem0 local)
+    agent = GhostAgent()                         # Default (mem0 cloud if key configured)
     agent = GhostAgent(ai=StepfunBackend())      # With AI backend
 """
 import subprocess, os, sys, json, re
@@ -31,181 +27,141 @@ for d in [PROJECTS_DIR, LOGS_DIR, MEMORY_DIR]:
     d.mkdir(exist_ok=True)
 
 
-# ============================================================
-# mem0 Memory Adapter
-# ============================================================
 class Mem0Memory:
-    """
-    Ghost Agent v3.1 Memory System powered by mem0.
-    
-    Features:
-    - Semantic search (vector + BM25 + entity fusion)
-    - Auto memory extraction from conversations
-    - Local storage via Qdrant (no cloud needed)
-    - Multi-user / multi-agent support
-    - Persistent across sessions
-    
-    Falls back to local JSON if mem0 is not installed.
-    """
-    
+    """Ghost Agent v3.1 Memory System powered by mem0."""
+
     def __init__(self, user_id="ghost_agent", agent_id="main", api_key=None):
         self.user_id = user_id
         self.agent_id = agent_id
         self._mem0_available = False
         self._fallback = {}
-        
-        # Read API key from parameter, then environment variable
         self.api_key = api_key or os.environ.get("MEM0_API_KEY", "")
-        
-        try:
-            from mem0 import MemoryClient, Memory
-            
-            if self.api_key:
-                # Cloud mode: use mem0 platform API (handles vector storage + LLM + embeddings)
+        if not self.api_key:
+            try:
+                _cp = WORKSPACE / "ghost_agent_config.json"
+                if _cp.exists():
+                    _cfg = json.loads(_cp.read_text(encoding="utf-8"))
+                    self.api_key = _cfg.get("mem0_api_key", "")
+            except Exception:
+                pass
+
+        if self.api_key:
+            try:
+                from mem0 import MemoryClient
                 self.memory = MemoryClient(api_key=self.api_key)
                 self._mem0_available = True
-                print("[mem0] Cloud mode initialized (API key: " + self.api_key[:8] + "...)")
-            else:
-                # Local mode: try local Qdrant + Ollama
-                try:
-                    self.memory = Memory()
-                    self._mem0_available = True
-                    print("[mem0] Local mode initialized")
-                except Exception as e:
-                    print("[mem0] Local init failed: " + str(e)[:80])
-                    print("[mem0] Set MEM0_API_KEY env var for cloud mode")
-            
-        except ImportError:
-            print("[mem0] Not installed, using JSON fallback. Run: pip install mem0ai")
-        except Exception as e:
-            print("[mem0] Init failed: " + str(e)[:80] + ", using JSON fallback")
-    
+                print("[mem0] Cloud mode initialized (key: " + self.api_key[:8] + "...)")
+            except ImportError:
+                print("[mem0] Not installed, using JSON fallback")
+            except Exception as e:
+                print("[mem0] Cloud init failed: " + str(e)[:80])
+        else:
+            try:
+                from mem0 import Memory
+                self.memory = Memory()
+                self._mem0_available = True
+                print("[mem0] Local mode initialized")
+            except ImportError:
+                print("[mem0] Not installed, using JSON fallback")
+            except Exception as e:
+                print("[mem0] Local init failed: " + str(e)[:80])
+
     def remember(self, key, value, layer="l1"):
-        """Store a memory entry"""
         entry = json.dumps({"key": key, "value": value}, ensure_ascii=False)
-        
         if self._mem0_available:
             try:
                 self.memory.add(
                     [{"role": "user", "content": entry}],
                     user_id=self.user_id,
-                    metadata={"layer": layer, "key": key}
+                    metadata={"layer": layer, "key": key},
                 )
                 return
-            except Exception as e:
-                pass  # Fall through to JSON
-        
-        # JSON fallback
+            except Exception:
+                pass
         if layer not in self._fallback:
             self._fallback[layer] = {}
         self._fallback[layer][key] = value
         self._save_fallback()
-    
+
     def recall(self, key):
-        """Recall a memory by exact key"""
         if self._mem0_available:
             try:
-                results = self.memory.search(
-                    query=key, user_id=self.user_id, limit=1
-                )
+                results = self.memory.search(query=key, user_id=self.user_id, limit=1)
                 if results.get("results"):
                     content = results["results"][0].get("memory", "")
                     try:
                         return json.loads(content).get("value", content)
-                    except:
+                    except Exception:
                         return content
-            except:
+            except Exception:
                 pass
-        
-        # JSON fallback
         for layer in self._fallback.values():
             if key in layer:
                 return layer[key]
         return None
-    
+
     def recall_relevant(self, query, limit=5):
-        """Find relevant memories using mem0 semantic search"""
         if self._mem0_available:
             try:
-                results = self.memory.search(
-                    query=query, user_id=self.user_id, limit=limit
-                )
+                results = self.memory.search(query=query, user_id=self.user_id, limit=limit)
                 if results.get("results"):
                     return [
-                        {
-                            "key": r.get("metadata", {}).get("key", "unknown"),
-                            "value": r.get("memory", ""),
-                            "score": r.get("score", 0),
-                        }
+                        {"key": r.get("metadata", {}).get("key", "unknown"),
+                         "value": r.get("memory", ""),
+                         "score": r.get("score", 0)}
                         for r in results["results"]
                     ]
-            except:
+            except Exception:
                 pass
-        
-        # JSON fallback: keyword search
         results = []
         query_lower = query.lower()
-        for layer_name, layer in self._fallback.items():
+        for layer in self._fallback.values():
             for key, value in layer.items():
                 value_str = json.dumps(value, ensure_ascii=False).lower()
                 if query_lower in key.lower() or query_lower in value_str:
                     results.append({"key": key, "value": value, "score": 0.5})
         return results[:limit]
-    
+
     def remember_error(self, error_type, detail, fix, success):
-        """Remember an error and its fix"""
-        entry = json.dumps({
-            "type": error_type, "detail": detail[:200],
-            "fix": fix, "ok": success
-        }, ensure_ascii=False)
-        
+        entry = json.dumps({"type": error_type, "detail": detail[:200], "fix": fix, "ok": success}, ensure_ascii=False)
         if self._mem0_available:
             try:
                 self.memory.add(
                     [{"role": "user", "content": entry}],
                     user_id=self.user_id,
-                    metadata={"type": "error_fix", "error_type": error_type}
+                    metadata={"type": "error_fix", "error_type": error_type},
                 )
                 return
-            except:
+            except Exception:
                 pass
-        
-        # JSON fallback
         if "errors" not in self._fallback:
             self._fallback["errors"] = []
         self._fallback["errors"].append({
             "type": error_type, "detail": detail[:200],
-            "fix": fix, "ok": success, "time": datetime.now().isoformat()
+            "fix": fix, "ok": success, "time": datetime.now().isoformat(),
         })
         self._fallback["errors"] = self._fallback["errors"][-100:]
         self._save_fallback()
-    
+
     def find_fix(self, error_type):
-        """Find a known fix for an error type"""
         if self._mem0_available:
             try:
-                results = self.memory.search(
-                    query="error fix " + error_type,
-                    user_id=self.user_id, limit=3
-                )
+                results = self.memory.search(query="error fix " + error_type, user_id=self.user_id, limit=3)
                 for r in results.get("results", []):
                     try:
                         data = json.loads(r.get("memory", "{}"))
                         if data.get("ok"):
                             return data.get("fix", "")
-                    except:
+                    except Exception:
                         pass
-            except:
+            except Exception:
                 pass
-        
-        # JSON fallback
         for entry in reversed(self._fallback.get("errors", [])):
             if entry["type"] == error_type and entry["ok"]:
                 return entry["fix"]
         return None
-    
+
     def get_context_summary(self, max_chars=2000):
-        """Get a compact context summary for LLM prompts"""
         if self._mem0_available:
             try:
                 results = self.memory.get_all(user_id=self.user_id, limit=20)
@@ -219,10 +175,8 @@ class Mem0Memory:
                         parts.append(line)
                         total += len(line)
                     return "\n".join(parts)
-            except:
+            except Exception:
                 pass
-        
-        # JSON fallback
         parts = []
         total = 0
         for layer in self._fallback.values():
@@ -234,34 +188,27 @@ class Mem0Memory:
                     parts.append(line)
                     total += len(line)
         return "\n".join(parts)
-    
+
     def flush(self):
-        """Flush - mem0 auto-persists, no action needed"""
         pass
-    
+
     def stats(self):
-        """Return memory statistics"""
         if self._mem0_available:
             try:
                 results = self.memory.get_all(user_id=self.user_id, limit=1000)
                 count = len(results.get("results", []))
                 return {"total": count, "backend": "mem0", "user_id": self.user_id}
-            except:
+            except Exception:
                 pass
-        
         total = sum(len(v) if isinstance(v, dict) else 0 for v in self._fallback.values())
         return {"total": total, "backend": "json_fallback"}
-    
+
     def _save_fallback(self):
-        """Save fallback JSON"""
         (MEMORY_DIR / "fallback.json").write_text(
             json.dumps(self._fallback, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
 
-# ============================================================
-# AI Backend Interface (same as v3.0)
-# ============================================================
 class AIBackend:
     def generate_code(self, requirement, language="python", context=None):
         raise NotImplementedError
@@ -276,12 +223,10 @@ class TemplateBackend(AIBackend):
             self.templates = TemplateLibrary()
         except ImportError:
             self.templates = None
-    
     def generate_code(self, requirement, language="python", context=None):
         if self.templates:
             return self.templates.generate(requirement, language)
         return "# Template library not available\nprint('Hello from Ghost Agent v3.1')"
-    
     def fix_code(self, code, error, language="python"):
         return code
 
@@ -293,13 +238,9 @@ class StepfunBackend(AIBackend):
         self.base_url = base_url or "https://api.stepfun.com/v1"
         if not self.api_key:
             self._load_from_openclaw_config()
-    
     def _load_from_openclaw_config(self):
-        config_paths = [
-            Path(os.path.expanduser("~/.openclaw/agents/main/agent/models.json")),
-            Path("C:/Users/shenz/.openclaw/agents/main/agent/models.json"),
-        ]
-        for p in config_paths:
+        for p in [Path(os.path.expanduser("~/.openclaw/agents/main/agent/models.json")),
+                  Path("C:/Users/shenz/.openclaw/agents/main/agent/models.json")]:
             if p.exists():
                 try:
                     config = json.loads(p.read_text(encoding="utf-8"))
@@ -313,23 +254,17 @@ class StepfunBackend(AIBackend):
                                 break
                 except Exception:
                     pass
-    
     def generate_code(self, requirement, language="python", context=None):
         prompt = "你是一个专业的 " + language + " 程序员。根据需求生成完整可运行的代码。\n需求: " + requirement + "\n要求：1. 代码必须包含 if __name__ == \"__main__\" 入口 2. 必须有 print 输出 3. 只返回代码，不要解释:"
         return self._call(prompt)
-    
     def fix_code(self, code, error, language="python"):
         prompt = "修复 " + language + " 代码错误:\n代码:\n" + code + "\n错误:\n" + error + "\n只返回修复后代码:"
         return self._call(prompt)
-    
     def _call(self, prompt):
         try:
             import urllib.request
-            data = json.dumps({
-                "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.2, "max_tokens": 4000,
-            }).encode()
+            data = json.dumps({"model": self.model, "messages": [{"role": "user", "content": prompt}],
+                               "temperature": 0.2, "max_tokens": 4000}).encode()
             headers = {"Content-Type": "application/json"}
             if self.api_key:
                 headers["Authorization"] = "Bearer " + self.api_key
@@ -347,11 +282,9 @@ class StepfunBackend(AIBackend):
 class LongCatBackend(StepfunBackend):
     def __init__(self, api_key=None, model="LongCat-2.0-Preview", base_url=None):
         super().__init__(api_key=api_key, model=model, base_url=base_url or "https://api.longcat.chat/openai/v1")
-    
     def generate_code(self, requirement, language="python", context=None):
         prompt = "You are a professional " + language + " programmer. Generate complete, runnable code.\nRequirement: " + requirement + "\nReturn code only, no explanation:"
         return self._call(prompt)
-    
     def fix_code(self, code, error, language="python"):
         prompt = "Fix the " + language + " code error:\nCode:\n" + code + "\nError:\n" + error + "\nReturn fixed code only:"
         return self._call(prompt)
@@ -366,15 +299,12 @@ class OllamaBackend(AIBackend):
     def __init__(self, model="codellama", host="http://localhost:11434"):
         self.model = model
         self.host = host
-    
     def generate_code(self, requirement, language="python", context=None):
         prompt = "[INST] Generate code. Requirement: " + requirement + " [/INST]"
         return self._call(prompt)
-    
     def fix_code(self, code, error, language="python"):
         prompt = "[INST] Fix error: " + error + " in code: " + code + " [/INST]"
         return self._call(prompt)
-    
     def _call(self, prompt):
         try:
             import urllib.request
@@ -388,9 +318,6 @@ class OllamaBackend(AIBackend):
             return "# Generation failed: " + str(e)
 
 
-# ============================================================
-# OpenClaw Executor
-# ============================================================
 class OpenClawExecutor:
     def run_python(self, code, project_dir=None):
         wd = Path(project_dir) if project_dir else PROJECTS_DIR
@@ -399,13 +326,14 @@ class OpenClawExecutor:
         f = wd / ("_run_" + ts + ".py")
         f.write_text(code, encoding="utf-8")
         try:
-            r = subprocess.run([sys.executable, str(f)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT, cwd=str(wd), env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+            r = subprocess.run([sys.executable, str(f)], capture_output=True, text=True, encoding="utf-8",
+                               errors="replace", timeout=TIMEOUT, cwd=str(wd),
+                               env={**os.environ, "PYTHONIOENCODING": "utf-8"})
             return {"success": r.returncode == 0, "stdout": r.stdout, "stderr": r.stderr}
         except subprocess.TimeoutExpired:
             return {"success": False, "stdout": "", "stderr": "timeout"}
         except Exception as e:
             return {"success": False, "stdout": "", "stderr": str(e)}
-    
     def run_node(self, code, project_dir=None):
         wd = Path(project_dir) if project_dir else PROJECTS_DIR
         wd.mkdir(exist_ok=True)
@@ -413,7 +341,8 @@ class OpenClawExecutor:
         f = wd / ("_run_" + ts + ".js")
         f.write_text(code, encoding="utf-8")
         try:
-            r = subprocess.run(["node", str(f)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT, cwd=str(wd))
+            r = subprocess.run(["node", str(f)], capture_output=True, text=True, encoding="utf-8",
+                               errors="replace", timeout=TIMEOUT, cwd=str(wd))
             return {"success": r.returncode == 0, "stdout": r.stdout, "stderr": r.stderr}
         except subprocess.TimeoutExpired:
             return {"success": False, "stdout": "", "stderr": "timeout"}
@@ -421,13 +350,9 @@ class OpenClawExecutor:
             return {"success": False, "stdout": "", "stderr": str(e)}
 
 
-# ============================================================
-# SmartFixer V2
-# ============================================================
 class SmartFixerV2:
     def __init__(self, memory):
         self.memory = memory
-    
     def fix(self, code, error, lang="python"):
         fixes = []
         if lang == "python":
@@ -467,9 +392,6 @@ class SmartFixerV2:
         return code, "; ".join(fixes) if fixes else "Cannot auto-fix", len(fixes) > 0
 
 
-# ============================================================
-# Task Planner
-# ============================================================
 class TaskPlanner:
     def plan(self, req):
         req = req.lower()
@@ -482,18 +404,8 @@ class TaskPlanner:
         return [{"action": "generate", "desc": "Generate code"}, {"action": "run", "desc": "Run test"}]
 
 
-# ============================================================
-# Ghost Agent v3.1 Main Class
-# ============================================================
 class GhostAgent:
-    """
-    Ghost Agent v3.1 - mem0 Memory + All v2.x Features
-    
-    Usage:
-        agent = GhostAgent()                                    # Default
-        agent = GhostAgent(ai=StepfunBackend())                  # With AI
-    """
-    
+    """Ghost Agent v3.1 - mem0 Memory + All v2.x Features"""
     def __init__(self, ai=None, user_id="ghost_agent"):
         self.ai = ai or TemplateBackend()
         self.memory = Mem0Memory(user_id=user_id)
@@ -501,7 +413,7 @@ class GhostAgent:
         self.planner = TaskPlanner()
         self.fixer = SmartFixerV2(self.memory)
         self.history = []
-    
+
     def do(self, requirement, language="python", project_dir=None):
         print("=" * 60)
         print("Ghost Agent v3.1 - mem0 Memory")
@@ -509,15 +421,12 @@ class GhostAgent:
         print("Memory: " + str(self.memory.stats()))
         print("=" * 60)
         print("Requirement: " + requirement)
-        print("Language: " + language)
         print()
-        
-        # Plan
+
         steps = self.planner.plan(requirement)
         print("[Plan] " + " -> ".join(s["desc"] for s in steps))
         print()
-        
-        # Check memory for relevant past experience
+
         relevant = self.memory.recall_relevant(requirement, limit=3)
         context = None
         if relevant:
@@ -525,20 +434,17 @@ class GhostAgent:
             for r in relevant:
                 print("  - " + r["key"] + " (score: " + str(r["score"])[:4] + ")")
             context = {"memories": relevant}
-        
-        # Generate code
+
         print("[Generate]")
         if project_dir and Path(project_dir).exists():
             r = self.executor.run_shell("dir /b " + project_dir)
             if r["success"]:
                 if context is None: context = {}
                 context["files"] = r["stdout"].split("\n")[:10]
-        
         code = self.ai.generate_code(requirement, language, context)
         print("  Generated " + str(len(code.splitlines())) + " lines")
         print()
-        
-        # Run + Auto-fix
+
         print("[Run + Auto-fix]")
         current_code = code
         fixes = []
@@ -552,7 +458,6 @@ class GhostAgent:
             else:
                 err = result["stderr"]
                 print("  Failed: " + err[:100])
-                
                 new_code, desc, fixed = self.fixer.fix(current_code, err, language)
                 if fixed:
                     print("  Fixed: " + desc)
@@ -562,7 +467,6 @@ class GhostAgent:
                     mem_fix = self.memory.find_fix("NameError" if "NameError" in err else "SyntaxError" if "SyntaxError" in err else "TypeError" if "TypeError" in err else "")
                     if mem_fix:
                         print("  Memory hint: " + mem_fix)
-                    
                     print("  SmartFixer cannot fix, trying AI...")
                     ai_fixed = self.ai.fix_code(current_code, err, language)
                     if ai_fixed and ai_fixed != current_code:
@@ -576,8 +480,7 @@ class GhostAgent:
                             print("  Max rounds reached")
         else:
             result = self.executor.run_python(current_code, project_dir) if language == "python" else self.executor.run_node(current_code, project_dir)
-        
-        # Reflect + Remember
+
         success = result["success"]
         if not success:
             etype = "Unknown"
@@ -586,12 +489,10 @@ class GhostAgent:
                     etype = p
                     break
             self.memory.remember_error(etype, result["stderr"], str(fixes), success)
-        
-        self.memory.remember(
-            "task:" + requirement[:50],
-            {"requirement": requirement, "success": success, "rounds": rnd, "fixes": fixes}
-        )
-        
+
+        self.memory.remember("task:" + requirement[:50],
+                              {"requirement": requirement, "success": success, "rounds": rnd, "fixes": fixes})
+
         print()
         print("=" * 60)
         if success:
@@ -604,62 +505,40 @@ class GhostAgent:
             print("Rounds: " + str(rnd))
             print("Error: " + result["stderr"][:200])
         print("=" * 60)
-        
-        report = {
-            "success": success, "requirement": requirement,
-            "language": language, "rounds": rnd, "fixes": fixes,
-            "output": result.get("stdout", ""),
-            "error": result.get("stderr", "") if not success else None,
-            "code": current_code,
-        }
-        self.history.append({
-            "time": datetime.now().isoformat(),
-            "requirement": requirement, "success": success,
-        })
+
+        report = {"success": success, "requirement": requirement, "language": language,
+                  "rounds": rnd, "fixes": fixes, "output": result.get("stdout", ""),
+                  "error": result.get("stderr", "") if not success else None, "code": current_code}
+        self.history.append({"time": datetime.now().isoformat(), "requirement": requirement, "success": success})
         return report
 
 
 def create_agent(config_path=None):
-    """Create Ghost Agent v3.1 from config file"""
     if config_path is None:
         config_path = Path("ghost_agent_config.json")
-    
     if not config_path.exists():
         return GhostAgent()
-    
     config = json.loads(config_path.read_text(encoding="utf-8"))
     backend = config.get("backend", "template")
-    
     ai = None
     if backend == "stepfun":
-        ai = StepfunBackend(
-            model=config.get("stepfun_model", "step-3.5-flash"),
-            base_url=config.get("stepfun_base_url", "") or None,
-            api_key=config.get("stepfun_api_key", "") or None,
-        )
+        ai = StepfunBackend(model=config.get("stepfun_model", "step-3.5-flash"),
+                            base_url=config.get("stepfun_base_url", "") or None,
+                            api_key=config.get("stepfun_api_key", "") or None)
     elif backend == "longcat":
-        ai = LongCatBackend(
-            model=config.get("longcat_model", "LongCat-2.0-Preview"),
-            base_url=config.get("longcat_base_url", "") or None,
-            api_key=config.get("longcat_api_key", "") or None,
-        )
+        ai = LongCatBackend(model=config.get("longcat_model", "LongCat-2.0-Preview"),
+                            base_url=config.get("longcat_base_url", "") or None,
+                            api_key=config.get("longcat_api_key", "") or None)
     elif backend == "openai":
-        ai = OpenAIBackend(
-            api_key=config.get("openai_key", ""),
-            model=config.get("openai_model", "gpt-4"),
-        )
+        ai = OpenAIBackend(api_key=config.get("openai_key", ""), model=config.get("openai_model", "gpt-4"))
     elif backend == "ollama":
-        ai = OllamaBackend(
-            model=config.get("ollama_model", "codellama"),
-            host=config.get("ollama_host", "http://localhost:11434"),
-        )
-    
+        ai = OllamaBackend(model=config.get("ollama_model", "codellama"),
+                           host=config.get("ollama_host", "http://localhost:11434"))
     return GhostAgent(ai=ai)
 
 
 if __name__ == "__main__":
     import sys
-    
     if len(sys.argv) > 1 and sys.argv[1] == "--test":
         agent = create_agent()
         print("\n=== Test 1: Simple task ===")
