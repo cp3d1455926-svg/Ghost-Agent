@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Ghost Agent Web UI - Desktop Launcher
-用 PyInstaller 打包为独立 exe
+Ghost Agent v3.1 - Desktop Launcher (No Electron)
+使用系统默认浏览器打开 Web UI
 """
 import subprocess
 import sys
 import os
 import time
+import webbrowser
 import threading
 from pathlib import Path
 
@@ -26,49 +27,26 @@ def start_backend():
     return backend
 
 
-def start_electron():
-    """启动 Electron 前端"""
-    print("[Launcher] 启动 Electron 前端...")
-    electron_dir = WORKSPACE / "electron"
-
-    # 检查 electron 是否可用
-    electron_exe = electron_dir / "node_modules" / ".bin" / "electron.cmd"
-    if not electron_exe.exists():
-        print("[Launcher] Electron 未安装，请先运行: cd electron && npm install")
-        return None
-
-    frontend = subprocess.Popen(
-        [str(electron_exe), "."],
-        cwd=str(electron_dir),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    print(f"[Launcher] 前端 PID: {frontend.pid}")
-    return frontend
-
-
 def main():
     print("=" * 60)
-    print("Ghost Agent v3.1 - Desktop Launcher")
+    print("Ghost Agent v3.1 - Desktop")
     print("=" * 60)
 
     backend = start_backend()
     time.sleep(2)  # 等待后端启动
 
-    frontend = start_electron()
-    if frontend is None:
-        print("[Launcher] 启动失败")
-        backend.kill()
-        return
+    # 用系统浏览器打开 Web UI
+    url = "http://localhost:26602"
+    print(f"[Launcher] 打开浏览器: {url}")
+    webbrowser.open(url)
 
-    print("[Launcher] Ghost Agent 已启动!")
+    print("[Ghost Agent 已启动!]")
     print("[Launcher] 按 Ctrl+C 退出")
 
     try:
         backend.wait()
     except KeyboardInterrupt:
         print("\n[Launcher] 正在关闭...")
-        frontend.kill()
         backend.kill()
         print("[Launcher] 已退出")
 
